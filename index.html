@@ -272,7 +272,7 @@ uniform float uMist,uMistH,uMistBase; uniform vec3 uMistCol;
 uniform vec3 uCamP,uFw,uRt,uUp; uniform float uFocal,uExposure;
 uniform int uNObj; uniform vec4 uObjA[8]; uniform vec4 uObjB[8]; uniform vec4 uObjC[8]; uniform vec4 uObjR[8]; uniform vec4 uObjD[8];
 uniform int uOct,uMaxSteps,uShadowSteps,uBounces,uCloudOct;
-uniform highp sampler3D uHeadTex; uniform int uHeadOK; uniform vec3 uHeadMin,uHeadMax,uHeadN;
+uniform highp sampler3D uHeadTex; uniform int uHeadOK; uniform vec3 uHeadMin,uHeadMax,uHeadN,uHeadOff; uniform float uHeadK;
 
 float hash2(ivec2 p){
   uint h=uint(p.x)*374761393u+uint(p.y)*668265263u+uSeed*2246822519u;
@@ -427,13 +427,13 @@ float sdHeadProc(vec3 p){
   d=smax(d,-(p.y+1.68),.05);
   return d*.8;
 }
-// Scanned head (Lee Perry-Smith, CC BY 3.0) baked into a 3D distance texture.
-// Local units span y -1.68..1.68 like the other shapes; the scan faces +z so z is flipped.
+// Head mesh (MakeHuman, CC0) baked into a 3D distance texture.
+// Local units span y -1.68..1.68 like the other shapes; the mesh faces +z so z is flipped.
 float sdHead(vec3 p){
   if(uHeadOK==0)return sdHeadProc(p);
   if(length(p)>2.6)return length(p)-2.3;
-  const float K=1.6577;
-  vec3 m=vec3(p.x,p.y+1.68,-p.z)*K+vec3(0,-1.6,.3);
+  float K=uHeadK;
+  vec3 m=vec3(p.x,p.y+1.68,-p.z)*K+uHeadOff;
   vec3 c=clamp(m,uHeadMin,uHeadMax);
   vec3 uvw=((c-uHeadMin)/(uHeadMax-uHeadMin)*(uHeadN-1.)+.5)/uHeadN;
   float d=texture(uHeadTex,uvw).r+length(m-c);
@@ -975,7 +975,8 @@ function initGL(){
   return true;
 }
 // Scanned head distance field. Grid points from HEAD_MIN to HEAD_MAX, x fastest, float16.
-const HEAD_N=[76,99,88], HEAD_MIN=[-2.25,-1.6,-2.37077], HEAD_MAX=[2.25,4.28,2.84923];
+const HEAD_N=[68,107,75], HEAD_MIN=[-1,5,-.575333], HEAD_MAX=[1.01,8.18,1.644667];
+const HEAD_K=(8.047-5)/3.36, HEAD_OFF=[0,5,.5];
 let headTex=null, headData=null;
 function uploadHead(){
   if(!headData||!gl) return;
@@ -1015,7 +1016,7 @@ function upload(q){
   const v4=(n,arr)=>{if(U[n]!=null)gl.uniform4fv(U[n],arr);};
   gl.uniform1ui(U.uSeed,W.seed>>>0);
   ui('uHeadOK',headTex?1:0);ui('uHeadTex',0);
-  if(U.uHeadMin){gl.uniform3f(U.uHeadMin,...HEAD_MIN);gl.uniform3f(U.uHeadMax,...HEAD_MAX);gl.uniform3f(U.uHeadN,...HEAD_N);}
+  if(U.uHeadMin){gl.uniform3f(U.uHeadMin,...HEAD_MIN);gl.uniform3f(U.uHeadMax,...HEAD_MAX);gl.uniform3f(U.uHeadN,...HEAD_N);gl.uniform3f(U.uHeadOff,...HEAD_OFF);gl.uniform1f(U.uHeadK,HEAD_K);}
   ui('uTStyle',W.tstyle);
   u('uTScale',W.tscale);u('uTHgt',W.thgt);u('uTOff',W.toff);u('uTerrace',W.terrace);
   u('uStepK',W.terrace>0?Math.min(.25,STEPK[W.tstyle]):STEPK[W.tstyle]);
@@ -1295,7 +1296,6 @@ function renderPanel(){
       slider('Stars','stars',0,1,.01,v=>v?pct(v):'None'),
       slider('Nebula','nebula',0,1,.01,v=>v?pct(v):'None'),
       swatches([['Nebula','nebCol']]),
-      el('p','note','Stars and nebula show only where the sky is dark. Darken Sky top and Horizon to see them.'),
       seg('Planet','planet',[[0,'None'],[1,'Planet'],[2,'Ringed']],renderPanel));
     if(W.planet>0) P(slider('Planet direction','planetAz',0,360,1,deg),slider('Planet height','planetEl',-5,80,.5,deg),
       slider('Planet size','planetSize',.03,.5,.005,v=>(v/D2R).toFixed(1)+'°'),slider('Planet tilt','planetTilt',-80,80,1,deg),swatches([['Planet','planetCol']]));
@@ -1324,7 +1324,7 @@ function renderPanel(){
       slider('Line spacing','gridSize',4,80,1,fx(0,' m')),
       slider('Mirror','gridMirror',0,1,.01,pct),
       swatches([['Lines','gridLine'],['Floor','gridFloor']]));
-    if(W.surface==='none') P(el('p','note','No water or floor. Valleys stay open. Turn on Flat ground floor for a desert floor.'),toggle('Flat ground floor','useFloor',renderPanel));
+    if(W.surface==='none') P(toggle('Flat ground floor','useFloor',renderPanel));
   }
   if(tab==='Objects') objectsPanel(P);
   if(tab==='Camera'){
@@ -1338,8 +1338,7 @@ function renderPanel(){
       slider('Brightness','exposure',.4,2.5,.05,fx(2,'×')),
       title('Picture'),
       seg('Shape','aspect',ASPECTS.map(a=>[a[0],a[0]]),()=>{layoutView();schedule('drag');}),
-      seg('HD render size','hd',[['1280','1280 px'],['1920','1920 px'],['2560','2560 px']]),
-      el('p','note','Size is the long edge. Large renders take longer and need a strong graphics chip.'));
+      seg('HD render size','hd',[['1280','1280 px'],['1920','1920 px'],['2560','2560 px']]));
   }
 }
 let objChipWrap=null;
@@ -1375,8 +1374,7 @@ function objectsPanel(P){
   a2.onclick=()=>{W.objs.push(randomObj());sel=W.objs.length-1;changed();renderPanel();};
   add.append(a1,a2);
   P(objChipWrap,add);
-  if(W.objs.length>=8) P(el('p','note','Eight objects is the limit. Use Copies to fill a scene with more.'));
-  if(!W.objs.length){P(el('p','note','No objects yet. Add a chrome sphere for the classic look.'));return;}
+  if(!W.objs.length) return;
   if(sel>=W.objs.length) sel=W.objs.length-1;
   const o=W.objs[sel];
   const L1=['Radius','Ring size','Width','Radius','Base radius','Base width','Width','Size','Radius','Size','Half height'][o.type];
