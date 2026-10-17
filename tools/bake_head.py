@@ -1,5 +1,6 @@
-# Usage: python3 tools/bake_head.py mh_body.ply 5.0 0.03 1.0 out mh_eyes_fwd.npy 0.125
-# Then blur (gaussian sigma 0.9), clamp to +-0.3, save as float16 z,y,x order, gzip to models/head.sdf.gz.
+# Usage: python3 tools/bake_head.py mh_body.ply 5.0 0.03 1.0 out mh_eyes.npy 0.155,0.1,0.11,0,-0.005,0.05
+# (last arg: closed-eyelid ellipsoid radii and offset). Then blur (gaussian sigma 0.9), clamp to +-0.3,
+# save as float16 z,y,x order, gzip to models/head.sdf.gz.
 # Bake a head mesh (+ optional eyeball spheres) into a signed distance grid.
 import sys, numpy as np, trimesh, gzip, json
 from scipy.spatial import cKDTree
@@ -9,9 +10,10 @@ mesh, YCUT, VOX, XH, out = sys.argv[1], float(sys.argv[2]), float(sys.argv[3]), 
 m=trimesh.load(mesh,force='mesh')
 parts=[m]
 if len(sys.argv)>6:
-    eyes=np.load(sys.argv[6]); r=float(sys.argv[7])
+    # eyeballs or closed lids: ellipsoids at the eye joints, radii rx,ry,rz and offset dx,dy,dz
+    eyes=np.load(sys.argv[6]); rr=[float(x) for x in sys.argv[7].split(',')]
     for e in eyes:
-        s=trimesh.creation.icosphere(4,r); s.apply_translation(e); parts.append(s)
+        s=trimesh.creation.icosphere(4,1.0); s.apply_scale(rr[:3]); s.apply_translation(e+np.array(rr[3:6] if len(rr)>3 else [0,0,0])); parts.append(s)
 m=trimesh.util.concatenate(parts)
 v=m.vertices; hv=v[v[:,1]>YCUT]
 pad=4*VOX
