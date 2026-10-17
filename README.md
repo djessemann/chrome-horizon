@@ -12,7 +12,7 @@ It's a single file with no build step. Open `index.html` in a browser, or serve 
 python3 -m http.server 8000
 ```
 
-To host it, turn on GitHub Pages for the repo and point it at the root. The app lives at `index.html`.
+To host it, turn on GitHub Pages for the repo and point it at the root. The app lives at `index.html`. Here, every push to `main` is copied to `gh-pages` by `.github/workflows/publish.yml`, and Pages serves that.
 
 Needs a browser with WebGL 2 (any recent Safari, Chrome, or Firefox).
 

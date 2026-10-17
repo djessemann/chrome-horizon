@@ -1,0 +1,15 @@
+# Copies main to gh-pages so GitHub Pages picks up every push to main.
+name: Publish
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: git push --force origin HEAD:gh-pages
