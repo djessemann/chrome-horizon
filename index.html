@@ -392,26 +392,39 @@ float smax(float a,float b,float k){return -smin(-a,-b,k);}
 float sdEll(vec3 p,vec3 r){float k0=length(p/r),k1=length(p/(r*r));return k0*(k0-1.)/k1;}
 float sdCap(vec3 p,vec3 a,vec3 b,float r){vec3 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return length(pa-ba*h)-r;}
 float limb(vec3 p,vec3 a,vec3 b,float ra,float rb){vec3 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return length(pa-ba*h)-mix(ra,rb,h);}
+// Sculpted mannequin head: smooth skull, closed eyes, defined nose and lips. Faces -z.
 float sdHead(vec3 p){
   p.y-=.5;
   if(length(p-vec3(0,-.3,0))>2.3)return length(p-vec3(0,-.3,0))-2.1;
   vec3 q=vec3(abs(p.x),p.yz);
-  float d=sdEll(p-vec3(0,.15,.1),vec3(.82,.98,.98));
-  d=smin(d,sdEll(p-vec3(0,-.45,-.25),vec3(.62,.55,.6)),.35);
-  d=smin(d,sdEll(p-vec3(0,-.88,-.52),vec3(.25,.2,.2)),.2);
-  d=smin(d,sdEll(q-vec3(.42,-.18,-.55),vec3(.25,.22,.2)),.15);
-  d=smin(d,sdEll(q-vec3(.28,.22,-.74),vec3(.28,.1,.12)),.12);
-  d=smax(d,-sdEll(q-vec3(.3,.08,-.88),vec3(.17,.1,.12)),.08);
-  d=smin(d,length(q-vec3(.3,.07,-.74))-.12,.02);
-  d=smin(d,sdCap(p,vec3(0,.12,-.88),vec3(0,-.25,-1.02),.085),.08);
-  d=smin(d,sdEll(p-vec3(0,-.3,-.95),vec3(.14,.08,.1)),.05);
-  d=smin(d,sdEll(p-vec3(0,-.5,-.86),vec3(.2,.055,.08)),.04);
-  d=smin(d,sdEll(p-vec3(0,-.61,-.83),vec3(.18,.06,.08)),.04);
-  d=smax(d,-sdEll(p-vec3(0,-.555,-.9),vec3(.17,.012,.06)),.015);
-  d=smin(d,sdEll(q-vec3(.83,-.05,.05),vec3(.08,.25,.15)),.06);
-  d=smin(d,sdCap(p,vec3(0,-.6,.15),vec3(0,-1.8,.2),.42),.25);
+  // skull and face mass
+  float d=sdEll(p-vec3(0,.22,.1),vec3(.72,.96,.95));
+  d=smin(d,sdEll(p-vec3(0,-.3,-.22),vec3(.54,.62,.66)),.38);
+  // jaw, chin, cheekbones, brow
+  d=smin(d,sdEll(q-vec3(.27,-.62,-.32),vec3(.2,.2,.32)),.25);
+  d=smin(d,sdEll(p-vec3(0,-.83,-.6),vec3(.22,.17,.17)),.18);
+  d=smin(d,sdEll(q-vec3(.38,-.1,-.52),vec3(.2,.16,.22)),.22);
+  d=smin(d,sdEll(q-vec3(.26,.24,-.74),vec3(.26,.09,.12)),.16);
+  // eye sockets with closed lids and a soft lash line
+  d=smax(d,-sdEll(q-vec3(.26,.07,-.9),vec3(.16,.1,.12)),.14);
+  d=smin(d,sdEll(q-vec3(.26,.05,-.73),vec3(.145,.1,.1)),.08);
+  d=smax(d,-sdEll(q-vec3(.26,.035,-.83),vec3(.13,.006,.04)),.012);
+  // nose: bridge, tip, wings, nostrils
+  d=smin(d,limb(p,vec3(0,.14,-.86),vec3(0,-.2,-1.03),.055,.085),.1);
+  d=smin(d,length(p-vec3(0,-.22,-1.02))-.085,.06);
+  d=smin(d,sdEll(q-vec3(.085,-.26,-.94),vec3(.065,.055,.06)),.05);
+  d=smax(d,-sdEll(q-vec3(.05,-.31,-.97),vec3(.028,.018,.035)),.012);
+  // lips and mouth line
+  d=smin(d,sdEll(p-vec3(0,-.44,-.84),vec3(.19,.06,.09)),.06);
+  d=smin(d,sdEll(p-vec3(0,-.56,-.82),vec3(.16,.065,.09)),.05);
+  d=smax(d,-sdEll(p-vec3(0,-.5,-.9),vec3(.18,.01,.07)),.015);
+  // ears
+  d=smin(d,sdEll(q-vec3(.72,-.02,.08),vec3(.075,.22,.14)),.06);
+  d=smax(d,-sdEll(q-vec3(.78,-.02,.06),vec3(.03,.13,.08)),.03);
+  // neck
+  d=smin(d,sdCap(p,vec3(0,-.6,.18),vec3(0,-1.9,.28),.4),.3);
   d=smax(d,-(p.y+1.68),.05);
-  return d;
+  return d*.8;
 }
 void joints(int pose,float s,out vec3 e,out vec3 w,out vec3 k,out vec3 a,out vec3 t){
   e=vec3(s*.24,1.13,.02);w=vec3(s*.27,.86,0.);k=vec3(s*.1,.5,-.01);a=vec3(s*.1,.08,.02);t=vec3(s*.11,.03,-.14);
@@ -478,7 +491,7 @@ float marchObj(vec3 ro,vec3 rd,float tmax,inout int id){
   for(int i=0;i<220;i++){vec3 p=ro+rd*t;float d=mapObj(p,id);if(d<.0005*t+.001)return t;t+=d;if(t>tmax)return -1.;}
   return -1.;
 }
-vec3 objNormal(vec3 p,int i){vec2 e=vec2(.002,0);return normalize(vec3(sdObj(i,p+e.xyy)-sdObj(i,p-e.xyy),sdObj(i,p+e.yxy)-sdObj(i,p-e.yxy),sdObj(i,p+e.yyx)-sdObj(i,p-e.yyx)));}
+vec3 objNormal(vec3 p,int i){int ty=int(uObjA[i].w+.5);vec2 e=vec2(ty>=9?.003*uObjB[i].x:.002,0);return normalize(vec3(sdObj(i,p+e.xyy)-sdObj(i,p-e.xyy),sdObj(i,p+e.yxy)-sdObj(i,p-e.yxy),sdObj(i,p+e.yyx)-sdObj(i,p-e.yyx)));}
 float shadow(vec3 p,vec3 l){
   if(l.y<=0.)return 0.;
   float res=1.,t=.15;int dum=0;
