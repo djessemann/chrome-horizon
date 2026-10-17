@@ -272,6 +272,7 @@ uniform float uMist,uMistH,uMistBase; uniform vec3 uMistCol;
 uniform vec3 uCamP,uFw,uRt,uUp; uniform float uFocal,uExposure;
 uniform int uNObj; uniform vec4 uObjA[8]; uniform vec4 uObjB[8]; uniform vec4 uObjC[8]; uniform vec4 uObjR[8]; uniform vec4 uObjD[8];
 uniform int uOct,uMaxSteps,uShadowSteps,uBounces,uCloudOct;
+uniform highp sampler3D uHeadTex; uniform int uHeadOK; uniform vec3 uHeadMin,uHeadMax,uHeadN;
 
 float hash2(ivec2 p){
   uint h=uint(p.x)*374761393u+uint(p.y)*668265263u+uSeed*2246822519u;
@@ -392,8 +393,8 @@ float smax(float a,float b,float k){return -smin(-a,-b,k);}
 float sdEll(vec3 p,vec3 r){float k0=length(p/r),k1=length(p/(r*r));return k0*(k0-1.)/k1;}
 float sdCap(vec3 p,vec3 a,vec3 b,float r){vec3 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return length(pa-ba*h)-r;}
 float limb(vec3 p,vec3 a,vec3 b,float ra,float rb){vec3 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return length(pa-ba*h)-mix(ra,rb,h);}
-// Sculpted mannequin head: smooth skull, closed eyes, defined nose and lips. Faces -z.
-float sdHead(vec3 p){
+// Fallback head built from blended shapes, used until the scanned head loads. Faces -z.
+float sdHeadProc(vec3 p){
   p.y-=.5;
   if(length(p-vec3(0,-.3,0))>2.3)return length(p-vec3(0,-.3,0))-2.1;
   vec3 q=vec3(abs(p.x),p.yz);
@@ -425,6 +426,19 @@ float sdHead(vec3 p){
   d=smin(d,sdCap(p,vec3(0,-.6,.18),vec3(0,-1.9,.28),.4),.3);
   d=smax(d,-(p.y+1.68),.05);
   return d*.8;
+}
+// Scanned head (Lee Perry-Smith, CC BY 3.0) baked into a 3D distance texture.
+// Local units span y -1.68..1.68 like the other shapes; the scan faces +z so z is flipped.
+float sdHead(vec3 p){
+  if(uHeadOK==0)return sdHeadProc(p);
+  if(length(p)>2.6)return length(p)-2.3;
+  const float K=1.6577;
+  vec3 m=vec3(p.x,p.y+1.68,-p.z)*K+vec3(0,-1.6,.3);
+  vec3 c=clamp(m,uHeadMin,uHeadMax);
+  vec3 uvw=((c-uHeadMin)/(uHeadMax-uHeadMin)*(uHeadN-1.)+.5)/uHeadN;
+  float d=texture(uHeadTex,uvw).r+length(m-c);
+  d=max(d,uHeadMin.y-m.y);
+  return d/K;
 }
 void joints(int pose,float s,out vec3 e,out vec3 w,out vec3 k,out vec3 a,out vec3 t){
   e=vec3(s*.24,1.13,.02);w=vec3(s*.27,.86,0.);k=vec3(s*.1,.5,-.01);a=vec3(s*.1,.08,.02);t=vec3(s*.11,.03,-.14);
@@ -491,7 +505,7 @@ float marchObj(vec3 ro,vec3 rd,float tmax,inout int id){
   for(int i=0;i<220;i++){vec3 p=ro+rd*t;float d=mapObj(p,id);if(d<.0005*t+.001)return t;t+=d;if(t>tmax)return -1.;}
   return -1.;
 }
-vec3 objNormal(vec3 p,int i){int ty=int(uObjA[i].w+.5);vec2 e=vec2(ty>=9?.003*uObjB[i].x:.002,0);return normalize(vec3(sdObj(i,p+e.xyy)-sdObj(i,p-e.xyy),sdObj(i,p+e.yxy)-sdObj(i,p-e.yxy),sdObj(i,p+e.yyx)-sdObj(i,p-e.yyx)));}
+vec3 objNormal(vec3 p,int i){int ty=int(uObjA[i].w+.5);vec2 e=vec2(ty==9&&uHeadOK==1?.035*uObjB[i].x:ty>=9?.003*uObjB[i].x:.002,0);return normalize(vec3(sdObj(i,p+e.xyy)-sdObj(i,p-e.xyy),sdObj(i,p+e.yxy)-sdObj(i,p-e.yxy),sdObj(i,p+e.yyx)-sdObj(i,p-e.yyx)));}
 float shadow(vec3 p,vec3 l){
   if(l.y<=0.)return 0.;
   float res=1.,t=.15;int dum=0;
@@ -960,8 +974,29 @@ function initGL(){
   gl.enable(gl.SCISSOR_TEST);
   return true;
 }
+// Scanned head distance field. Grid points from HEAD_MIN to HEAD_MAX, x fastest, float16.
+const HEAD_N=[76,99,88], HEAD_MIN=[-2.25,-1.6,-2.37077], HEAD_MAX=[2.25,4.28,2.84923];
+let headTex=null, headData=null;
+function uploadHead(){
+  if(!headData||!gl) return;
+  headTex=gl.createTexture();gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_3D,headTex);
+  gl.texParameteri(gl.TEXTURE_3D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_3D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  for(const w of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T,gl.TEXTURE_WRAP_R]) gl.texParameteri(gl.TEXTURE_3D,w,gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);
+  gl.texImage3D(gl.TEXTURE_3D,0,gl.R16F,HEAD_N[0],HEAD_N[1],HEAD_N[2],0,gl.RED,gl.HALF_FLOAT,headData);
+}
+async function loadHead(){
+  try{
+    if(typeof DecompressionStream==='undefined') return;
+    const r=await fetch('models/head.sdf.gz'); if(!r.ok) return;
+    const buf=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    if(buf.byteLength!==HEAD_N[0]*HEAD_N[1]*HEAD_N[2]*2) return;
+    headData=new Uint16Array(buf);
+    if(glOK){uploadHead();if(!job||job.mode!=='hd')schedule('preview');}
+  }catch(e){}
+}
 glc.addEventListener('webglcontextlost',e=>{e.preventDefault();glOK=false;job=null;statusEl.innerHTML='<span class="err">Graphics reset. Try a smaller render size.</span>';hideHD();});
-glc.addEventListener('webglcontextrestored',()=>{try{glOK=initGL();schedule('preview');}catch(e){}});
+glc.addEventListener('webglcontextrestored',()=>{try{glOK=initGL();uploadHead();schedule('preview');}catch(e){}});
 
 const lin = h => { const n=parseInt(h.slice(1),16); return [((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255].map(v=>Math.pow(v,2.2)); };
 const D2R=Math.PI/180;
@@ -979,6 +1014,8 @@ function upload(q){
   const c=(n,h,m=1)=>{const v=lin(h);u(n,v[0]*m,v[1]*m,v[2]*m);};
   const v4=(n,arr)=>{if(U[n]!=null)gl.uniform4fv(U[n],arr);};
   gl.uniform1ui(U.uSeed,W.seed>>>0);
+  ui('uHeadOK',headTex?1:0);ui('uHeadTex',0);
+  if(U.uHeadMin){gl.uniform3f(U.uHeadMin,...HEAD_MIN);gl.uniform3f(U.uHeadMax,...HEAD_MAX);gl.uniform3f(U.uHeadN,...HEAD_N);}
   ui('uTStyle',W.tstyle);
   u('uTScale',W.tscale);u('uTHgt',W.thgt);u('uTOff',W.toff);u('uTerrace',W.terrace);
   u('uStepK',W.terrace>0?Math.min(.25,STEPK[W.tstyle]):STEPK[W.tstyle]);
@@ -1426,6 +1463,7 @@ renderPanel();
 layoutView();
 new ResizeObserver(()=>{layoutView();if(!job||job.mode!=='hd')schedule('drag');}).observe(stage);
 if(glOK) schedule('drag');
+loadHead();
 setTimeout(()=>{hint.style.opacity=0;},6000);
 if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();

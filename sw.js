@@ -1,6 +1,6 @@
 // Offline support. Network first for the page so updates show up; cache first for everything else.
-const CACHE = 'chrome-horizon-v2';
-const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'];
+const CACHE = 'chrome-horizon-v3';
+const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png', './models/head.sdf.gz'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
 });

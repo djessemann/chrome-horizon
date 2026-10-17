@@ -37,6 +37,7 @@ Open the link in Safari, tap Share, then **Add to Home Screen**. It opens full s
 
 - `index.html`: the whole app (HTML, CSS, shader, and JavaScript).
 - `manifest.webmanifest`, `sw.js`, `icons/`: home screen app and offline support.
+- `models/head.sdf.gz`: the Head shape, a 3D scan baked into a distance grid (76×99×88, float16, gzipped).
 - `renderer/bryce.c`: the original command-line raytracer in C that the app was ported from. Build with `gcc -O3 -ffast-math -fopenmp renderer/bryce.c -o bryce -lm`, then run `./bryce <scene 1-4> <width> <height> <samples> out.ppm`.
 - `samples/`: four renders from the C version.
 
@@ -45,3 +46,7 @@ Open the link in Safari, tap Share, then **Add to Home Screen**. It opens full s
 - Terrain is a heightfield from layered value noise, with five styles: eroded mountains, ridged peaks, dunes, buttes, and craters.
 - Objects are signed distance functions (spheres, rings, cubes, pillars, cones, pyramids, crystals, boulders, capsules, a sculpted head, and a posable figure), raymarched with soft shadows, reflections, and glass refraction.
 - The picture renders in horizontal bands so phones don't stall, and fills in from the top down like Bryce did.
+
+## Credits
+
+The Head shape comes from "Infinite, 3D Head Scan" by Lee Perry-Smith, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Based on a work at www.triplegangers.com. Taken from the [three.js examples](https://github.com/mrdoob/three.js/tree/dev/examples/models/gltf/LeePerrySmith) and converted to a signed distance grid.
