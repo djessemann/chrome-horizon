@@ -975,8 +975,8 @@ function initGL(){
   return true;
 }
 // Scanned head distance field. Grid points from HEAD_MIN to HEAD_MAX, x fastest, float16.
-const HEAD_N=[68,114,76], HEAD_MIN=[-1,5,-.571333], HEAD_MAX=[1.01,8.39,1.678667];
-const HEAD_K=(8.25-5)/3.36, HEAD_OFF=[0,5,.5];
+const HEAD_N=[68,106,75], HEAD_MIN=[-1,5,-.5486], HEAD_MAX=[1.01,8.15,1.6714];
+const HEAD_K=(8.001-5)/3.36, HEAD_OFF=[0,5,.5];
 let headTex=null, headData=null;
 function uploadHead(){
   if(!headData||!gl) return;

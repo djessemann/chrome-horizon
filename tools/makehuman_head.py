@@ -18,6 +18,13 @@ for r in ['african','asian','caucasian']: target(r+'-female-young',1/3)
 # feminine face details (CC0 MakeHuman modifiers)
 for line in open('fem.txt'):
     t,w=line.split(); target(t.replace('/','_'),float(w))
+# shrink the cranium (sides and dome) so the face fills more of the head
+ey=V[np.unique(np.array(faces['joint-l-eye']))][:,1].mean()
+top=V[:,1].max(); H=(np.abs(V[:,0])<1.3)&(V[:,1]>ey-0.9)
+t=np.clip((V[:,1]-(ey-0.15))/(top-ey+0.15),0,1); t=t*t*(3-2*t)
+V[H,0]*=1-0.13*t[H]
+brow=ey+0.2; up=H&(V[:,1]>brow)
+V[up,1]=brow+(V[up,1]-brow)*(1-0.1*t[up])
 tri=[]
 for f in faces['body']:
     if len(f)==4: tri+= [[f[0],f[1],f[2]],[f[0],f[2],f[3]]]
