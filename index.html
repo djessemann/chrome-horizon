@@ -35,14 +35,14 @@ button,input,label{touch-action:manipulation}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
 .app{height:100%;display:flex;flex-direction:column;min-height:0}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:10px 8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-.mark{font-family:var(--f-display);font-size:13px;letter-spacing:.22em;text-transform:uppercase;
+.mark{white-space:nowrap;font-family:var(--f-display);font-size:13px;letter-spacing:.22em;text-transform:uppercase;
   background:linear-gradient(180deg,#ffffff 0%,#c9d3e3 45%,#6f7d95 52%,#dfe6f1 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .status{font-family:var(--f-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .stagewrap{flex:0 0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .stage{position:relative;height:min(46dvh,calc((100vw - 32px) / var(--ar,1.78)));display:grid;place-items:center;touch-action:none;user-select:none;-webkit-user-select:none}
 #view{display:block;border-radius:6px;background:#06080c;box-shadow:0 0 0 1px var(--line),0 10px 30px rgba(0,0,0,.45);max-width:100%;cursor:grab}
 #view:active{cursor:grabbing}
-.bar{position:absolute;left:0;bottom:-6px;height:2px;background:var(--accent);border-radius:2px;transition:opacity .3s;opacity:0}
+.bar{position:absolute;left:0;top:0;width:0;height:3px;background:var(--accent);border-radius:0 0 6px 6px;transition:opacity .4s;opacity:0;pointer-events:none}
 .hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:12px;color:#fff;background:rgba(10,12,18,.62);padding:5px 10px;border-radius:99px;pointer-events:none;transition:opacity .5s;white-space:nowrap}
 .presets{flex:0 0 auto;display:flex;gap:8px;overflow-x:auto;padding-block:14px 4px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));scrollbar-width:none}
 .presets::-webkit-scrollbar{display:none}
@@ -146,11 +146,12 @@ html{box-sizing:border-box}
 <div class="app">
   <header class="top">
     <div class="mark">Chrome Horizon</div>
-    <div class="status" id="status">Starting…</div>
+    <div class="status" id="status"></div>
   </header>
   <div class="stagewrap">
     <div class="stage" id="stage">
       <canvas id="view" aria-label="Rendered landscape. Drag to look around, pinch to zoom."></canvas>
+      <div class="bar" id="bar"></div>
       <div class="hint" id="hint">Drag to look around. Pinch to zoom.</div>
     </div>
   </div>
@@ -845,7 +846,13 @@ function surfaceY(x,z){ let h=terrainH(x,z); if(W.surface!=='none') h=Math.max(h
 const view=document.getElementById('view'), vctx=view.getContext('2d');
 const glc=document.createElement('canvas');
 let gl=glc.getContext('webgl2',{preserveDrawingBuffer:true,antialias:false,alpha:false,powerPreference:'high-performance'});
-const statusEl=document.getElementById('status');
+const statusEl=document.getElementById('status'),barEl=document.getElementById('bar');
+// Thin bar along the bottom edge of the picture. null hides it.
+function progress(f){
+  if(f==null){barEl.style.opacity=0;return;}
+  barEl.style.left=view.offsetLeft+'px';barEl.style.top=(view.offsetTop+view.offsetHeight-3)+'px';
+  barEl.style.width=Math.round(view.offsetWidth*f)+'px';barEl.style.opacity=1;
+}
 let prog, U={}, glOK=false;
 function initGL(){
   if(!gl){ statusEl.innerHTML='<span class="err">This browser has no WebGL 2</span>'; return false; }
@@ -978,19 +985,19 @@ function step(id){
   j.band=Math.max(2,Math.min(j.h,Math.round(j.band*Math.min(2.5,Math.max(.3,target/Math.max(dt,1))))));
   const pct=Math.round(100*(1-y0/j.h));
   if(j.mode==='hd'){document.getElementById('hdMeta').textContent=`${j.w} × ${j.h} · ${pct}% · ${((performance.now()-j.t0)/1000).toFixed(1)} s`;}
-  else statusEl.textContent=j.mode==='drag'?'Moving…':`Rendering ${pct}%`;
+  else if(j.mode==='preview') progress(pct/100);
   if(y0>0){requestAnimationFrame(()=>step(id));return;}
   const secs=((performance.now()-j.t0)/1000).toFixed(1);
   job=null;
   if(j.mode==='drag'){
     if(pendingDrag){pendingDrag=false;startJob('drag');return;}
-    clearTimeout(idleTimer);idleTimer=setTimeout(()=>schedule('preview'),180);statusEl.textContent='Moving…';
+    clearTimeout(idleTimer);idleTimer=setTimeout(()=>schedule('preview'),180);
   }
-  else if(j.mode==='preview'){vctx.drawImage(glc,0,0,j.w,j.h,0,0,view.width,view.height);statusEl.textContent=`Preview ${j.w}×${j.h} · ${secs} s`;save();}
+  else if(j.mode==='preview'){vctx.drawImage(glc,0,0,j.w,j.h,0,0,view.width,view.height);progress(null);save();}
   else finishHD(j,secs);
 }
 function schedule(mode){
-  clearTimeout(idleTimer);
+  clearTimeout(idleTimer);if(mode==='drag')progress(null);
   if(job&&job.mode==='hd') return;
   startJob(mode==='drag'?'drag':'preview');
 }
@@ -1023,7 +1030,6 @@ function finishHD(j,secs){
     document.getElementById('saveHelp').textContent=canShare?'Tap Save or share, then Save Image. Or press and hold the image.':'Press and hold the image to save it to Photos. On a computer, right-click it and choose Save Image.';
     document.getElementById('resultMeta').textContent=`${j.w} × ${j.h} pixels · rendered in ${secs} s`;
     sheet.hidden=false;
-    statusEl.textContent=`Rendered ${j.w}×${j.h} · ${secs} s`;
   },'image/png');
 }
 document.getElementById('shareImg').onclick=()=>{if(lastFile)navigator.share({files:[lastFile]}).catch(()=>{});};
