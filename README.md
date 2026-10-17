@@ -37,7 +37,7 @@ Open the link in Safari, tap Share, then **Add to Home Screen**. It opens full s
 
 - `index.html`: the whole app (HTML, CSS, shader, and JavaScript).
 - `manifest.webmanifest`, `sw.js`, `icons/`: home screen app and offline support.
-- `models/head.sdf.gz`: the Head shape, a head mesh baked into a distance grid (68×107×75, float16, gzipped). `tools/` has the scripts that make it.
+- `models/head.sdf.gz`: the Head shape, a 3D scan baked into a distance grid (76×99×88, float16, gzipped).
 - `renderer/bryce.c`: the original command-line raytracer in C that the app was ported from. Build with `gcc -O3 -ffast-math -fopenmp renderer/bryce.c -o bryce -lm`, then run `./bryce <scene 1-4> <width> <height> <samples> out.ppm`.
 - `samples/`: four renders from the C version.
 
@@ -49,4 +49,4 @@ Open the link in Safari, tap Share, then **Add to Home Screen**. It opens full s
 
 ## Credits
 
-The Head shape is built from the [MakeHuman](https://github.com/makehumancommunity/makehuman) base mesh and targets (young female, plus face adjustments in `tools/feminine_targets.txt`). MakeHuman's assets are released under CC0.
+The Head shape comes from "Infinite, 3D Head Scan" by Lee Perry-Smith, licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). Based on a work at www.triplegangers.com. Taken from the [three.js examples](https://github.com/mrdoob/three.js/tree/dev/examples/models/gltf/LeePerrySmith) and converted to a signed distance grid.

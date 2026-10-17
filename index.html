@@ -427,8 +427,8 @@ float sdHeadProc(vec3 p){
   d=smax(d,-(p.y+1.68),.05);
   return d*.8;
 }
-// Head mesh (MakeHuman, CC0) baked into a 3D distance texture.
-// Local units span y -1.68..1.68 like the other shapes; the mesh faces +z so z is flipped.
+// Scanned head (Lee Perry-Smith, CC BY 3.0) baked into a 3D distance texture.
+// Local units span y -1.68..1.68 like the other shapes; the scan faces +z so z is flipped.
 float sdHead(vec3 p){
   if(uHeadOK==0)return sdHeadProc(p);
   if(length(p)>2.6)return length(p)-2.3;
@@ -975,8 +975,8 @@ function initGL(){
   return true;
 }
 // Scanned head distance field. Grid points from HEAD_MIN to HEAD_MAX, x fastest, float16.
-const HEAD_N=[68,106,75], HEAD_MIN=[-1,5,-.5486], HEAD_MAX=[1.01,8.15,1.6714];
-const HEAD_K=(8.001-5)/3.36, HEAD_OFF=[0,5,.5];
+const HEAD_N=[76,99,88], HEAD_MIN=[-2.25,-1.6,-2.37077], HEAD_MAX=[2.25,4.28,2.84923];
+const HEAD_K=1.6577, HEAD_OFF=[0,-1.6,.3];
 let headTex=null, headData=null;
 function uploadHead(){
   if(!headData||!gl) return;
